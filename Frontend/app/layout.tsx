@@ -7,10 +7,15 @@ import { Suspense } from "react"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "Vishnu Institute of Technology Admissions Portal",
+  title: "SRGEC AI-Enabled Student Admission System | Seshadri Rao Gudlavalleru Engineering College",
   description:
-    "Discover your future with our comprehensive academic programs. Get instant answers from Nemo, your AI Virtual Admissions Advisor.",
-  generator: "v0.app",
+    "Official AI-Enabled Student Admission Portal for Seshadri Rao Gudlavalleru Engineering College (SRGEC), Gudlavalleru, Krishna District, Andhra Pradesh (AP EAPCET Code: GECW). Explore accredited B.Tech, M.Tech, and MBA programmes, fee structures, JVD scholarships, and chat with Nemo virtual admissions advisor.",
+  generator: "SRGEC Portal",
+  icons: {
+    icon: "/logo-srgec.png",
+    shortcut: "/logo-srgec.png",
+    apple: "/logo-srgec.png",
+  },
 }
 
 export default function RootLayout({

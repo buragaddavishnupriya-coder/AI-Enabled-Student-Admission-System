@@ -74,7 +74,7 @@ async function testConnection() {
     const leadBody = {
       FirstName: "Test",
       LastName: "Salesforce Integration",
-      Company: "Vishnu Institute of Technology (VIT)",
+      Company: "Seshadri Rao Gudlavalleru Engineering College (SRGEC)",
       Email: "test.integration@example.com",
       Phone: "+15551234567"
     };

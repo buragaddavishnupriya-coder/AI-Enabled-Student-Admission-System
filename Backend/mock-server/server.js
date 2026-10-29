@@ -1,20 +1,12 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-
-const PORT = 8080;
-
-const COURSES = [
-    { id: "cse", name: "Computer Science & Engineering (CSE)", code: "CSE", fee: 120000 },
-    { id: "cse-aiml", name: "CSE (Artificial Intelligence & Machine Learning)", code: "CSE-AI&ML", fee: 120000 },
-    { id: "it", name: "Information Technology (IT)", code: "IT", fee: 110000 },
-    { id: "ece", name: "Electronics & Communication Engineering (ECE)", code: "ECE", fee: 90000 },
-    { id: "eee", name: "Electrical & Electronics Engineering (EEE)", code: "EEE", fee: 80000 },
-    { id: "mech", name: "Mechanical Engineering (ME)", code: "ME", fee: 75000 },
-    { id: "civil", name: "Civil Engineering (CE)", code: "CE", fee: 70000 }
-];
-
 const crypto = require("crypto");
+const { SRGEC_CONFIG } = require("./college-config");
+
+const PORT = process.env.PORT || 8080;
+
+const COURSES = SRGEC_CONFIG.courses;
 
 // Zero-dependency .env parser helper
 try {
@@ -38,12 +30,14 @@ try {
 }
 
 const enrollments = [];
+const leads = [];
 const DB_FILE = path.join(__dirname, "data", "enrollments.json");
+const LEADS_FILE = path.join(__dirname, "data", "leads.json");
 
 // Security settings
-const JWT_SECRET = process.env.JWT_SECRET || "counselorSecretKey2026!";
+const JWT_SECRET = process.env.JWT_SECRET || "srgecSecretKey2026!";
 const COUNSELOR_USER = process.env.COUNSELOR_USERNAME || "counselor";
-const COUNSELOR_PASS = process.env.COUNSELOR_PASSWORD || "counselor@vit";
+const COUNSELOR_PASS = process.env.COUNSELOR_PASSWORD || "counselor@srgec";
 
 function signJwt(payload, secret) {
     const header = { alg: "HS256", typ: "JWT" };
@@ -83,6 +77,7 @@ async function initPostgres() {
     if (!process.env.DATABASE_URL) {
         console.log("[MOCK DB] DATABASE_URL not set in .env. Using local json store.");
         loadDb();
+        loadLeadsDb();
         return;
     }
 
@@ -100,14 +95,12 @@ async function initPostgres() {
         try {
             await client.connect();
         } catch (connErr) {
-            // Postgres error code '3D000' means the target database does not exist
             if (connErr.code === '3D000') {
                 console.log(`📡 [MOCK DB] Database does not exist. Attempting to create database dynamically.`);
                 const urlMatch = connectionString.match(/\/([a-zA-Z0-9_-]+)(?:\?.*)?$/);
                 const targetDbName = urlMatch ? urlMatch[1] : null;
 
                 if (targetDbName) {
-                    // Connect to default 'postgres' database to create the new database
                     const defaultConnString = connectionString.replace(/\/([a-zA-Z0-9_-]+)(?:\?.*)?$/, "/postgres");
                     const adminClient = new Client({
                         connectionString: defaultConnString,
@@ -120,7 +113,6 @@ async function initPostgres() {
                     await adminClient.end();
                     console.log(`📡 [MOCK DB] Created database '${targetDbName}' successfully.`);
 
-                    // Reconnect to newly created database
                     client = new Client({
                         connectionString,
                         ssl: connectionString.includes("localhost") || connectionString.includes("127.0.0.1")
@@ -187,6 +179,7 @@ async function initPostgres() {
         console.error("🐘 [MOCK DB] PostgreSQL initialization failed:", err.message);
         console.log("[MOCK DB] Gracefully falling back to local JSON database caching.");
         loadDb();
+        loadLeadsDb();
     }
 }
 
@@ -200,6 +193,35 @@ function saveDb() {
         console.log(`[MOCK DB] Saved ${enrollments.length} records to local cache backup: ${DB_FILE}`);
     } catch (err) {
         console.error("[MOCK DB] Error writing database backup:", err);
+    }
+}
+
+function saveLeadsDb() {
+    try {
+        const dir = path.dirname(LEADS_FILE);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2), "utf8");
+        console.log(`[LOCAL LEADS DB] Saved ${leads.length} leads to ${LEADS_FILE}`);
+    } catch (err) {
+        console.error("[LOCAL LEADS DB] Error writing leads backup:", err);
+    }
+}
+
+function loadLeadsDb() {
+    try {
+        if (fs.existsSync(LEADS_FILE)) {
+            const data = fs.readFileSync(LEADS_FILE, "utf8");
+            const parsed = JSON.parse(data);
+            if (Array.isArray(parsed)) {
+                leads.length = 0;
+                leads.push(...parsed);
+                console.log(`[LOCAL LEADS DB] Loaded ${leads.length} leads from cache.`);
+            }
+        }
+    } catch (err) {
+        console.error("[LOCAL LEADS DB] Error reading leads file:", err);
     }
 }
 
@@ -257,7 +279,7 @@ function loadDb() {
     }
 }
 
-// Initialize datastore
+// Initialize datastores
 initPostgres();
 
 // Setup CORS headers
@@ -265,11 +287,10 @@ const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Accept, Authorization",
-    "Access-Control-Max-Age": 2592000, // 30 days
+    "Access-Control-Max-Age": 2592000,
 };
 
 // Session store for multi-turn conversations
-// Key: sessionId, Value: Array of Gemini message objects: { role: 'user'|'model', parts: [{ text: '...' }] }
 const sessions = new Map();
 
 // Salesforce OAuth 2.0 token caching and helper
@@ -278,13 +299,18 @@ let tokenExpiry = 0;
 let cachedInstanceUrl = "";
 
 async function getSalesforceConnection() {
+    const clientId = process.env.SF_CLIENT_ID;
+    const clientSecret = process.env.SF_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+        return null;
+    }
+
     if (cachedToken && Date.now() < tokenExpiry - 300000) {
         return { accessToken: cachedToken, instanceUrl: cachedInstanceUrl };
     }
 
     console.log("[SALESFORCE] Authenticating with Salesforce using Client Credentials Flow...");
-    const clientId = process.env.SF_CLIENT_ID;
-    const clientSecret = process.env.SF_CLIENT_SECRET;
     let myDomain = process.env.SF_MY_DOMAIN || "";
 
     if (myDomain && !myDomain.startsWith("http")) {
@@ -318,7 +344,7 @@ async function getSalesforceConnection() {
 
     cachedToken = tokenData.access_token;
     cachedInstanceUrl = tokenData.instance_url;
-    tokenExpiry = Date.now() + 7200000; // 2 hours cached validity
+    tokenExpiry = Date.now() + 7200000;
 
     console.log("[SALESFORCE] Authentication successful. Token cached.");
     return { accessToken: cachedToken, instanceUrl: cachedInstanceUrl };
@@ -330,7 +356,7 @@ async function sendTwilioWhatsApp(toPhone, messageBody) {
     const fromPhone = process.env.TWILIO_PHONE_NUMBER || "+14155238886";
 
     if (!accountSid || !authToken) {
-        console.warn("[TWILIO API] Warning: Twilio credentials not configured in .env. Skipping message.");
+        console.log(`[TWILIO API] (Notice: Twilio credentials not configured. WhatsApp simulation for ${toPhone}: "${messageBody.slice(0, 50)}...")`);
         return;
     }
 
@@ -368,64 +394,116 @@ async function sendTwilioWhatsApp(toPhone, messageBody) {
     }
 }
 
-
-
-// Vishnu Institute of Technology Handbook context (RAG Embedded Instructions)
-const VISHNU_INSTITUTE_OF_TECHNOLOGY_HANDBOOK = `
-VISHNU INSTITUTE OF TECHNOLOGY HANDBOOK & INFORMATION SHEET:
-- Overview: Established in 2008 in Bhimavaram, Andhra Pradesh, India. It is a part of Sri Vishnu Educational Society (SVES) founded by the late Dr. B. V. Raju. It is autonomous and affiliated with JNTUK, Kakinada. It is widely known for high placement rates, lush green campus, and state-of-the-art labs.
-- Campus Location: Vishnupur, Bhimavaram, West Godavari District, Andhra Pradesh, India (Pin: 534202).
-- Academic Program Offerings (UG - B.Tech):
-  * Computer Science and Engineering (CSE)
-  * CSE (Artificial Intelligence and Machine Learning)
-  * CSE (Data Science)
-  * Information Technology (IT)
-  * Electronics and Communication Engineering (ECE)
-  * Electrical and Electronics Engineering (EEE)
-  * Mechanical Engineering (ME)
-  * Civil Engineering (CE)
-- PG Offerings (M.Tech & MBA):
-  * M.Tech in Computer Science and Engineering
-  * Master of Business Administration (MBA)
-- Annual Tuition Fees (approximate, subject to convener/management quota):
-  * B.Tech Programs: ₹70,000 - ₹1,20,000 per year (depending on convener quota or management seats).
-  * MBA: ₹40,000 - ₹80,000 per year.
-  * Scholarships are available via Jagannanna Amma Vodi, Jnanabhumi, and merit-based institutional fee waivers.
+// Seshadri Rao Gudlavalleru Engineering College (SRGEC) Handbook
+const SRGEC_HANDBOOK = `
+SESHADRI RAO GUDLAVALLERU ENGINEERING COLLEGE (SRGEC) HANDBOOK:
+- Institution Name: Seshadri Rao Gudlavalleru Engineering College (Short Name: SRGEC).
+- Location: Seshadri Rao Knowledge Village, Gudlavalleru, Krishna District, Andhra Pradesh, India (PIN: 521356).
+- Status & Accreditation: Established in 1998; Autonomous Institution approved by AICTE, New Delhi; Permanently affiliated to JNTUK, Kakinada; Accredited by NAAC with 'A+' Grade; NBA Accredited B.Tech Programmes.
+- EAPCET Counselling Code: GECW (for B.Tech).
+- ECET Counselling Code: GECW (for Lateral Entry).
+- ICET Counselling Code: GECW (for MBA).
+- PGECET Counselling Code: GECW1 (for M.Tech).
+- Academic Programmes Offered:
+  * Undergraduate (B.Tech - 4 Years):
+    - Computer Science & Engineering (CSE) - Code: CSE
+    - CSE (Artificial Intelligence & Machine Learning) - Code: CSM
+    - CSE (Data Science) - Code: CSD
+    - CSE (Internet of Things) - Code: CSO
+    - Information Technology (IT) - Code: INF
+    - Electronics & Communication Engineering (ECE) - Code: ECE
+    - Electrical & Electronics Engineering (EEE) - Code: EEE
+    - Mechanical Engineering (ME) - Code: MEC
+    - Civil Engineering (CE) - Code: CIV
+  * Postgraduate (M.Tech - 2 Years & MBA - 2 Years):
+    - M.Tech in Computer Science & Engineering (JKCSEG)
+    - M.Tech in VLSI Design & Embedded Systems (JKVLSI)
+    - M.Tech in Power Electronics & Drives (JKPELD)
+    - Master of Business Administration - MBA (JKMBAG)
+  * Doctoral Studies (Ph.D): Recognized Research Centres in CSE, ECE, EEE, and Mechanical Engineering.
+- Fee Structure:
+  * B.Tech Convener Quota: ₹70,000 to ₹1,03,000 per year (as per AP Higher Education Regulatory and Monitoring Commission norms).
+  * M.Tech: ₹72,200 per year.
+  * MBA: ₹55,000 per year.
+- Scholarships & Financial Aid:
+  * Jagananna Vidya Deevena (JVD) - Full tuition fee reimbursement for eligible AP convener quota students (SC/ST < ₹2L, BC/EBC/Minority < ₹1L family income).
+  * SRGEC Merit Concessions: Fee waivers for top EAPCET/ECET rankers (< 5,000 rank: 50% waiver; < 15,000 rank: 30% waiver; < 30,000 rank: 15% waiver).
+  * Sports & Special Endowment fee concessions.
 - Admissions Requirements:
-  * Undergraduate (B.Tech Convener Quota): Must qualify in AP EAPCET (formerly AP EAMCET) exam and participate in state counseling.
-  * Management Quota: Based on JEE Mains rank or Intermediate (12th class) board marks (minimum 60% in MPC).
-  * Required Documents: SSC (10th) marksheet, Intermediate (12th) TC & marksheet, EAPCET Rank Card, Study/Bonafide certificates, Caste/Income certificate (if applicable).
-- Admissions Office Working Hours:
-  * Weekdays (Monday to Friday): 9:00 AM to 5:00 PM.
-  * Saturdays: 9:00 AM to 1:00 PM.
-- Admissions contact: admissions@vishnu.edu.in
+  * B.Tech Category-A: Through AP EAPCET state rank and online web counselling using college code GECW.
+  * B.Tech Category-B (Management / NRI): Based on JEE Main / EAPCET merit or 10+2 Intermediate MPC aggregate.
+  * Documents Required: 10th marks memo, Intermediate marks memo & TC, EAPCET rank card & hall ticket, Study certificates (7 years), Aadhaar cards, Caste/Income certificates (if applicable).
+- Working Hours: Monday to Saturday: 9:00 AM – 5:00 PM.
+- Official Contacts:
+  * Admissions Email: admissions@gecgudlavalleru.ac.in
+  * Support Email: support-portal@gecgudlavalleru.ac.in
+  * Phone: +91 8674-273737, +91 9848779121
+  * Official Website: https://gecgudlavalleru.ac.in
 `;
 
 // System Prompt for Nemo
 const NEMO_SYSTEM_PROMPT = `
-You are a friendly and personable university admissions chat assistant named Nemo at Vishnu Institute of Technology (VIT). Your primary mission is to have genuine, helpful conversations with prospective students visiting the university website, understand their educational goals and concerns, and guide interested students toward connecting with an admissions advisor.
+You are a friendly, courteous, and knowledgeable university admissions virtual assistant named Nemo at Seshadri Rao Gudlavalleru Engineering College (SRGEC), Gudlavalleru, Krishna District, Andhra Pradesh.
+Your primary role is to answer questions from prospective students and parents accurately using the verified SRGEC handbook details below, guide them through the admission process, explain eligibility and EAPCET counselling code (GECW), and connect them with an admissions advisor when requested.
 
-${VISHNU_INSTITUTE_OF_TECHNOLOGY_HANDBOOK}
+${SRGEC_HANDBOOK}
 
-## Core Objectives
-1. **Engage in Natural Conversation**: Build rapport through warm, consultative dialogue that helps students explore their options.
-2. **Understand Student Needs**: Learn about their motivations, career goals, and what matters most in their university decision.
-3. **Guide Toward Advisor Connection**: When the student shows genuine interest/engagement, offer to connect them with an admissions advisor.
-
-## Conversation Flow
-* Phase 1 (First 2-3 exchanges): Greet warmly, learn what brought them here. Reference their name, program, and department interest immediately if provided in the system message.
-* Phase 2 (Exploration): Dive deeper into career goals and practical concerns (tuition, entrance examinations).
-* Phase 3 (Knowledge Sharing): Use the handbook details above to answer specific questions accurately.
-* Phase 4 (Transition): After 4+ exchanges or multiple engaged questions, offer to connect with an advisor: "Would you prefer contact during business hours (10am-5pm) or sooner, within the next 2 hours?"
-* Phase 5 (Handoff Consent):
-  - Step A: Verify if you possess the student's contact phone number. If NOT, you MUST ask the student for their phone number first (e.g. "I'd display to connect you! Could you please share your phone number so an advisor can reach out?").
-  - Step B: Once you have their phone number AND they have chosen their preferred contact timing ("within 2 hours" or "during business hours"), you MUST prefix your response with exactly:
+## Core Guidelines
+1. Ground every answer in the verified SRGEC information above. Never invent cutoffs, fake fees, or unverified claims.
+2. Clearly mention the college EAPCET counselling code "GECW" when discussing engineering admissions.
+3. Be transparent, polite, and helpful.
+4. If a student wants an advisor handoff or personalized guidance, request their mobile number and preferred contact time ("within 2 hours" or "during business hours 9am-5pm").
+5. Only when you have their contact phone number AND contact timing, prefix your response with:
 [TRIGGER_ADVISOR_HANDOFF]
-Followed by a brief explanation and the confirmation message for the student.
-
-DO NOT output [TRIGGER_ADVISOR_HANDOFF] until you have obtained their contact phone number and preferred timing.
-Keep responses concise, friendly, and pressure-free.
+followed by the confirmation message for the student.
 `;
+
+// Rule-based knowledge base fallback for Nemo when GEMINI_API_KEY is not configured
+function generateRuleBasedAnswer(prompt, history) {
+    const p = prompt.toLowerCase();
+
+    // Check for advisor handoff trigger if phone number is detected
+    const phoneRegex = /(?:\+?\d{1,3}[\s-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}|\b\d{10}\b/;
+    const hasPhone = phoneRegex.test(prompt);
+
+    if (p.includes("call me") || p.includes("advisor") || p.includes("counselor") || p.includes("talk to someone") || p.includes("human") || hasPhone) {
+        if (hasPhone || (p.includes("hour") || p.includes("business"))) {
+            return `[TRIGGER_ADVISOR_HANDOFF]\nThank you for providing your contact details. An SRGEC Admissions Advisor has been notified and will reach out to you directly to guide you through branch selection, counselling procedures, and fee structures. In the meantime, feel free to explore our Programmes or submit an official Admission Application through the portal!`;
+        }
+        return `I would be delighted to connect you with an SRGEC Admissions Advisor! Could you please share your **10-digit mobile number** and your preferred contact timing (e.g. *within 2 hours* or *during business hours: 9 AM - 5 PM*)?`;
+    }
+
+    if (p.includes("code") || p.includes("counselling") || p.includes("eapcet") || p.includes("eamcet")) {
+        return `**SRGEC Counselling Codes for AP State Admissions:**\n\n* **AP EAPCET (B.Tech UG):** **\`GECW\`**\n* **AP ECET (Lateral Entry B.Tech):** **\`GECW\`**\n* **AP ICET (MBA):** **\`GECW\`**\n* **AP PGECET / GATE (M.Tech):** **\`GECW1\`**\n\nWhen entering your web options in the state counselling portal, search for **Seshadri Rao Gudlavalleru Engineering College (GECW)**.`;
+    }
+
+    if (p.includes("branch") || p.includes("course") || p.includes("programme") || p.includes("department") || p.includes("btech") || p.includes("cse") || p.includes("it")) {
+        return `**Academic Programmes at SRGEC (A.Y. 2026-2027):**\n\n**Undergraduate (B.Tech - 4 Years):**\n1. **Computer Science & Engineering (CSE)** (Code: CSE, Intake: 240)\n2. **CSE (Artificial Intelligence & Machine Learning)** (Code: CSM, Intake: 180)\n3. **CSE (Data Science)** (Code: CSD, Intake: 120)\n4. **CSE (Internet of Things)** (Code: CSO, Intake: 60)\n5. **Information Technology (IT)** (Code: INF, Intake: 120)\n6. **Electronics & Communication Engineering (ECE)** (Code: ECE, Intake: 180)\n7. **Electrical & Electronics Engineering (EEE)** (Code: EEE, Intake: 90)\n8. **Mechanical Engineering (ME)** (Code: MEC, Intake: 90)\n9. **Civil Engineering (CE)** (Code: CIV, Intake: 60)\n\n**Postgraduate & MBA:**\n* M.Tech in CSE, VLSI & Embedded Systems, Power Electronics & Drives\n* MBA (Dual specialization)\n\nWould you like more details about any specific branch?`;
+    }
+
+    if (p.includes("fee") || p.includes("tuition") || p.includes("cost") || p.includes("how much")) {
+        return `**SRGEC Fee Structure (A.Y. 2026-2027):**\n\n* **B.Tech (UG Programmes):** Standard tuition fee is approximately **₹70,000 to ₹1,03,000 per year** (as fixed by the AP Higher Education Regulatory Commission).\n* **M.Tech (PG):** **₹72,200 per year**.\n* **MBA:** **₹55,000 per year**.\n\n*Note:* Students eligible for **Jagananna Vidya Deevena (JVD)** receive 100% tuition fee reimbursement from the State Government. Institutional merit concessions are also available for top EAPCET rankers.`;
+    }
+
+    if (p.includes("scholarship") || p.includes("reimbursement") || p.includes("jvd") || p.includes("concession")) {
+        return `**Scholarship Policies at SRGEC:**\n\n1. **Jagananna Vidya Deevena (JVD):** Complete tuition fee reimbursement for eligible AP convener quota students (SC/ST family income < ₹2.00 Lakhs; BC/EBC/Minority < ₹1.00 Lakh).\n2. **SRGEC Merit Concessions:**\n   * EAPCET Rank 1 to 5,000: **50% tuition waiver**\n   * EAPCET Rank 5,001 to 15,000: **30% tuition waiver**\n   * EAPCET Rank 15,001 to 30,000: **15% tuition waiver**\n3. **Sports & Special Endowment:** 20% concession for state/national level athletes.`;
+    }
+
+    if (p.includes("document") || p.includes("certificate") || p.includes("eligibility") || p.includes("requirement")) {
+        return `**Required Admission Documents for SRGEC:**\n\n* SSC / 10th Class Marks Memo\n* Intermediate (10+2) / Diploma Marks Memo & Transfer Certificate (TC)\n* AP EAPCET / ECET / ICET Rank Card & Hall Ticket\n* Study / Bonafide Certificates (for previous 7 consecutive years)\n* Aadhaar Cards (Student & Parents)\n* Caste & Income Certificate (issued by MeeSeva, if seeking reservation or JVD reimbursement)\n* 6 Recent Passport-size Photographs`;
+    }
+
+    if (p.includes("contact") || p.includes("phone") || p.includes("email") || p.includes("address") || p.includes("location") || p.includes("where")) {
+        return `**SRGEC Admissions Contact Details:**\n\n* **Address:** Seshadri Rao Knowledge Village, Gudlavalleru, Krishna District, Andhra Pradesh - 521356, India.\n* **Admissions Phone:** +91 8674-273737 / +91 9848779121\n* **Admissions Email:** admissions@gecgudlavalleru.ac.in\n* **Working Hours:** Monday to Saturday, 9:00 AM – 5:00 PM\n* **Website:** https://gecgudlavalleru.ac.in`;
+    }
+
+    if (p.includes("apply") || p.includes("register") || p.includes("how to") || p.includes("step")) {
+        return `**How to Apply for Admission at SRGEC:**\n\n1. **Step 1:** Click on **"Apply Now"** in the top navigation to access the 4-step Admission Registration Wizard.\n2. **Step 2:** Fill in your personal details, academic scores, and AP EAPCET rank.\n3. **Step 3:** Select your primary and secondary branch preferences.\n4. **Step 4:** Review your details and submit to obtain an official Registration Reference ID.\n\nFor Category-A seats, ensure you participate in AP State EAPCET counselling with code **\`GECW\`**.`;
+    }
+
+    // Default friendly fallback
+    return `Hello! I am Nemo, your Admissions Assistant at **Seshadri Rao Gudlavalleru Engineering College (SRGEC)**, Gudlavalleru.\n\nI can help you with:\n* **Programmes & Branches** (B.Tech, M.Tech, MBA)\n* **EAPCET Counselling Code** (\`GECW\`)\n* **Fee Structures & Scholarships (JVD)**\n* **Required Documents & Eligibility Criteria**\n* **Connecting with an Admissions Advisor**\n\nWhat would you like to know today?`;
+}
 
 // Helper to write JSON responses
 const sendJson = (res, statusCode, data) => {
@@ -444,7 +522,7 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // Salesforce Contact/Lead Submission Route
+    // Salesforce / Local Lead Submission Route
     if (req.method === "POST" && req.url === "/createFormLead") {
         let body = "";
         req.on("data", (chunk) => {
@@ -455,58 +533,90 @@ const server = http.createServer((req, res) => {
             try {
                 const payload = JSON.parse(body);
                 console.log("\n========================================");
-                console.log("[SALESFORCE API] Pushing Lead Form Submission:");
+                console.log("[LEAD API] Pushing Admission Enquiry Lead:");
                 console.log(`  Name: ${payload.firstName} ${payload.lastName}`);
                 console.log(`  Email: ${payload.email}`);
                 console.log(`  Phone: ${payload.cellPhone}`);
                 console.log(`  Program Interest: ${payload.programType}`);
-                console.log(`  Location: ${payload.headquarters}`);
+                console.log(`  Location: ${payload.headquarters || "Gudlavalleru"}`);
                 console.log("========================================\n");
 
-                const sfConn = await getSalesforceConnection();
-                const leadPayload = {
-                    FirstName: payload.firstName || "",
-                    LastName: payload.lastName || "Unknown",
-                    Company: "Vishnu Institute of Technology (VIT)",
-                    Email: payload.email || "",
-                    Phone: payload.cellPhone || "",
-                    Description: `Campus Location: ${payload.headquarters || ""}\nProgram Interest: ${payload.programType || ""}\nHome Phone: ${payload.homePhone || ""}\nData Authorization: ${payload.dataAuthorization || false}`
-                };
+                let leadId = "SRGEC-LEAD-" + Date.now();
+                let syncedToSalesforce = false;
 
-                const leadResponse = await fetch(`${sfConn.instanceUrl}/services/data/v58.0/sobjects/Lead`, {
-                    method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${sfConn.accessToken}`,
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify(leadPayload)
-                });
+                // 1. Attempt Salesforce sync if credentials exist
+                const sfConn = await getSalesforceConnection().catch(() => null);
+                if (sfConn && sfConn.accessToken) {
+                    try {
+                        const leadPayload = {
+                            FirstName: payload.firstName || "",
+                            LastName: payload.lastName || "Unknown",
+                            Company: "Seshadri Rao Gudlavalleru Engineering College (SRGEC)",
+                            Email: payload.email || "",
+                            Phone: payload.cellPhone || "",
+                            Description: `Campus Location: ${payload.headquarters || "Gudlavalleru"}\nProgram Interest: ${payload.programType || ""}\nHome Phone: ${payload.homePhone || ""}\nData Authorization: ${payload.dataAuthorization || false}`
+                        };
 
-                const leadResult = await leadResponse.json();
-                if (!leadResponse.ok) {
-                    console.error("[SALESFORCE API] Lead creation failed:", leadResult);
-                    throw new Error("Salesforce Lead insertion error: " + JSON.stringify(leadResult));
+                        const leadResponse = await fetch(`${sfConn.instanceUrl}/services/data/v58.0/sobjects/Lead`, {
+                            method: "POST",
+                            headers: {
+                                "Authorization": `Bearer ${sfConn.accessToken}`,
+                                "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify(leadPayload)
+                        });
+
+                        const leadResult = await leadResponse.json();
+                        if (leadResponse.ok && leadResult.id) {
+                            leadId = leadResult.id;
+                            syncedToSalesforce = true;
+                            console.log(`[SALESFORCE API] Lead created in Salesforce sandbox with ID: ${leadId}`);
+                        } else {
+                            console.warn("[SALESFORCE API] Warning: Salesforce lead creation returned non-ok:", leadResult);
+                        }
+                    } catch (sfErr) {
+                        console.warn("[SALESFORCE API] Could not push to Salesforce CRM, saving locally:", sfErr.message);
+                    }
+                } else {
+                    console.log("[SALESFORCE API] SF_CLIENT_ID not configured; saving lead locally in JSON store.");
                 }
 
-                console.log(`[SALESFORCE API] Lead created successfully with ID: ${leadResult.id}`);
+                // 2. Persist locally to leads.json
+                const leadRecord = {
+                    id: leadId,
+                    firstName: payload.firstName,
+                    lastName: payload.lastName,
+                    email: payload.email,
+                    cellPhone: payload.cellPhone,
+                    headquarters: payload.headquarters || "Gudlavalleru Campus",
+                    programType: payload.programType,
+                    syncedToSalesforce,
+                    createdDate: new Date().toISOString()
+                };
+                leads.push(leadRecord);
+                saveLeadsDb();
+
+                // 3. Trigger WhatsApp notification via Twilio if configured
+                const twilioMsg = `Hello ${payload.firstName}! Thank you for your inquiry regarding admissions at Seshadri Rao Gudlavalleru Engineering College (SRGEC). Our admissions desk (Code: GECW) has received your details and will assist you shortly.`;
+                await sendTwilioWhatsApp(payload.cellPhone, twilioMsg);
 
                 sendJson(res, 200, {
                     statusCode: 200,
-                    message: "Lead created successfully",
+                    message: "Enquiry submitted successfully",
                     data: {
-                        leadId: leadResult.id,
+                        leadId: leadId,
                     },
+                    syncedToSalesforce
                 });
             } catch (err) {
-                console.error("[SALESFORCE API] Error processing /createFormLead:", err);
-                sendJson(res, 500, { error: err.message || "Failed to process lead in Salesforce" });
+                console.error("[LEAD API] Error processing /createFormLead:", err);
+                sendJson(res, 400, { error: err.message || "Failed to process admission inquiry" });
             }
         });
         return;
     }
 
-
-    // Google Gemini API Proxy SSE Stream
+    // AI Proxy SSE Stream (Gemini when GEMINI_API_KEY is configured, Rule-based Knowledge fallback when missing)
     if (req.method === "POST" && req.url === "/") {
         let body = "";
         req.on("data", (chunk) => {
@@ -516,21 +626,13 @@ const server = http.createServer((req, res) => {
         req.on("end", async () => {
             try {
                 const requestData = JSON.parse(body);
-                const runtimeSessionId = requestData.runtimeSessionId;
+                const runtimeSessionId = requestData.runtimeSessionId || "default-session";
                 const payload = requestData.payload || {};
                 const prompt = payload.prompt || "";
-                const phoneNumber = payload.phone_number || "+1-555-000-0000";
+                const phoneNumber = payload.phone_number || "anonymous";
 
-                console.log(`\n[GEMINI PROXY] Message Request - Session ID: ${runtimeSessionId}`);
-                console.log(`[GEMINI PROXY] Query: "${prompt}"`);
-
-                const apiKey = process.env.GEMINI_API_KEY;
-                if (!apiKey) {
-                    console.error("[GEMINI PROXY] Missing GEMINI_API_KEY in .env");
-                    res.writeHead(500, corsHeaders);
-                    res.end("Error: GEMINI_API_KEY is not configured on the mock server.");
-                    return;
-                }
+                console.log(`\n[NEMO AI PROXY] Message Request - Session ID: ${runtimeSessionId}`);
+                console.log(`[NEMO AI PROXY] Query: "${prompt}"`);
 
                 // Set Headers for SSE streaming output to client
                 res.writeHead(200, {
@@ -540,232 +642,144 @@ const server = http.createServer((req, res) => {
                     "Connection": "keep-alive",
                 });
 
-                // 1. Send simulated tool status before getting Gemini response
-                res.write(`data: ${JSON.stringify({ thinking: "🔍 Searching Vishnu Institute of Technology KB..." })}\n\n`);
-                await new Promise((resolve) => setTimeout(resolve, 500));
-
-                // 2. Fetch history for this session
+                // Fetch history for this session
                 if (!sessions.has(runtimeSessionId)) {
                     sessions.set(runtimeSessionId, []);
                 }
                 const sessionHistory = sessions.get(runtimeSessionId);
 
-                // Append user prompt to history
-                sessionHistory.push({
-                    role: "user",
-                    parts: [{ text: prompt }],
-                });
+                const apiKey = process.env.GEMINI_API_KEY;
 
-                // 3. Request Google Gemini streamGenerateContent API
-                const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${apiKey}`;
-                const geminiPayload = {
-                    contents: sessionHistory,
-                    systemInstruction: {
-                        parts: [{ text: NEMO_SYSTEM_PROMPT }],
-                    },
-                };
+                if (apiKey) {
+                    // LIVE GEMINI STREAMING FLOW
+                    res.write(`data: ${JSON.stringify({ thinking: "🔍 Searching SRGEC Admissions Knowledge Base..." })}\n\n`);
+                    await new Promise((resolve) => setTimeout(resolve, 400));
 
-                const geminiResponse = await fetch(geminiUrl, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify(geminiPayload),
-                });
+                    sessionHistory.push({
+                        role: "user",
+                        parts: [{ text: prompt }],
+                    });
 
-                if (!geminiResponse.ok) {
-                    const errText = await geminiResponse.text();
-                    console.error("[GEMINI PROXY] API request failed:", geminiResponse.status, errText);
-                    res.write(`data: ${JSON.stringify({ error: `Gemini API Error: ${geminiResponse.statusText}` })}\n\n`);
-                    res.end();
-                    return;
-                }
+                    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${apiKey}`;
+                    const geminiPayload = {
+                        contents: sessionHistory,
+                        systemInstruction: {
+                            parts: [{ text: NEMO_SYSTEM_PROMPT }],
+                        },
+                    };
 
-                const reader = geminiResponse.body.getReader();
-                const decoder = new TextDecoder();
-                let buffer = "";
-                let fullReply = "";
-                let isHandoffTriggered = false;
+                    const geminiResponse = await fetch(geminiUrl, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(geminiPayload),
+                    });
 
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
+                    if (!geminiResponse.ok) {
+                        console.error("[GEMINI PROXY] API request failed with status:", geminiResponse.status);
+                        // Fall back to rule-based answer
+                        const fallbackReply = generateRuleBasedAnswer(prompt, sessionHistory);
+                        res.write(`data: ${JSON.stringify({ response: fallbackReply })}\n\n`);
+                        res.write(`data: ${JSON.stringify({ final_result: fallbackReply })}\n\n`);
+                        res.end();
+                        return;
+                    }
 
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split("\n");
-                    buffer = lines.pop(); // Keep unfinished line in buffer
+                    const reader = geminiResponse.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = "";
+                    let fullReply = "";
+                    let isHandoffTriggered = false;
 
-                    for (const line of lines) {
-                        const trimmedLine = line.trim();
-                        if (!trimmedLine.startsWith("data: ")) continue;
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
 
-                        const jsonStr = trimmedLine.slice(6).trim();
-                        if (!jsonStr) continue;
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split("\n");
+                        buffer = lines.pop();
 
-                        try {
-                            const chunkData = JSON.parse(jsonStr);
-                            let textChunk = chunkData.candidates?.[0]?.content?.parts?.[0]?.text;
-                            if (textChunk) {
-                                fullReply += textChunk;
+                        for (const line of lines) {
+                            const trimmedLine = line.trim();
+                            if (!trimmedLine.startsWith("data: ")) continue;
 
-                                // Check for Handoff Trigger tag
-                                if (fullReply.includes("[TRIGGER_ADVISOR_HANDOFF]")) {
-                                    isHandoffTriggered = true;
-                                    textChunk = textChunk.replace("[TRIGGER_ADVISOR_HANDOFF]", "");
-                                }
+                            const jsonStr = trimmedLine.slice(6).trim();
+                            if (!jsonStr) continue;
 
-                                // If handoff is triggered, clean up textChunk of the tag
-                                if (isHandoffTriggered) {
-                                    textChunk = textChunk.replace(/\[TRIGGER_ADVISOR_HANDOFF\]/gi, "");
-                                }
-
+                            try {
+                                const chunkData = JSON.parse(jsonStr);
+                                let textChunk = chunkData.candidates?.[0]?.content?.parts?.[0]?.text;
                                 if (textChunk) {
-                                    // Forward content chunk to client
-                                    res.write(`data: ${JSON.stringify({ response: textChunk })}\n\n`);
+                                    fullReply += textChunk;
+                                    if (fullReply.includes("[TRIGGER_ADVISOR_HANDOFF]")) {
+                                        isHandoffTriggered = true;
+                                        textChunk = textChunk.replace(/\[TRIGGER_ADVISOR_HANDOFF\]/gi, "");
+                                    }
+                                    if (textChunk) {
+                                        res.write(`data: ${JSON.stringify({ response: textChunk })}\n\n`);
+                                    }
                                 }
+                            } catch (pErr) {
+                                console.error("[GEMINI PROXY] Chunk parse error:", pErr);
                             }
-                        } catch (pErr) {
-                            console.error("[GEMINI PROXY] Chunk parse error:", pErr);
                         }
                     }
-                }
 
-                // Clean final reply text for history storage
-                const cleanedReply = fullReply.replace(/\[TRIGGER_ADVISOR_HANDOFF\]/gi, "").trim();
+                    const cleanedReply = fullReply.replace(/\[TRIGGER_ADVISOR_HANDOFF\]/gi, "").trim();
 
-                // 4. Handle Advisor Handoff actions
-                if (isHandoffTriggered) {
-                    console.log("\n------------------ REAL-AI HANDOFF DETECTED ------------------");
-                    let targetPhone = phoneNumber;
-                    try {
-                        const sfConn = await getSalesforceConnection();
-                        let leadId = null;
-
-                        // Resolve Target Phone from Context or History
-                        if (targetPhone === "anonymous" || !targetPhone) {
-                            // Match phone numbers like +91 9392532859, +15555022388, etc.
-                            const phoneRegex = /(?:\+?\d{1,3}[\s-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}|\+?\d{10,12}/g;
-                            for (let i = sessionHistory.length - 1; i >= 0; i--) {
-                                const text = sessionHistory[i].parts?.[0]?.text || "";
-                                const matches = text.match(phoneRegex);
-                                if (matches && matches.length > 0) {
-                                    targetPhone = matches[0].trim();
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (targetPhone === "anonymous" || !targetPhone) {
-                            console.warn("[SALESFORCE API] Warning: Handoff triggered but no phone number found in chat history. Falling back to default.");
-                            targetPhone = "+1-555-000-0000";
-                        }
-
-                        // Look up lead by phone
-                        const escapedPhone = targetPhone.replace(/'/g, "\\'");
-                        const queryUrl = `${sfConn.instanceUrl}/services/data/v58.0/query?q=SELECT+Id+FROM+Lead+WHERE+Phone='${encodeURIComponent(escapedPhone)}'+OR+MobilePhone='${encodeURIComponent(escapedPhone)}'+ORDER+BY+CreatedDate+DESC+LIMIT+1`;
-
-                        const queryRes = await fetch(queryUrl, {
-                            method: "GET",
-                            headers: {
-                                "Authorization": `Bearer ${sfConn.accessToken}`
-                            }
-                        });
-
-                        if (queryRes.ok) {
-                            const queryData = await queryRes.json();
-                            if (queryData.records && queryData.records.length > 0) {
-                                leadId = queryData.records[0].Id;
-                                console.log(`[SALESFORCE API] Found existing lead with ID: ${leadId}`);
-                            }
-                        }
-
-                        if (leadId) {
-                            // Update Lead Status to 'Working - Contacted'
-                            console.log(`[SALESFORCE API] Updating lead status to 'Working - Contacted'...`);
-                            await fetch(`${sfConn.instanceUrl}/services/data/v58.0/sobjects/Lead/${leadId}`, {
-                                method: "PATCH",
-                                headers: {
-                                    "Authorization": `Bearer ${sfConn.accessToken}`,
-                                    "Content-Type": "application/json"
-                                },
-                                body: JSON.stringify({ Status: "Working - Contacted" })
-                            });
-                        } else {
-                            // Create a new lead for handoff
-                            console.log(`[SALESFORCE API] Lead not found. Creating new handoff lead...`);
-                            const newLeadBody = {
-                                FirstName: "Chat Handoff",
-                                LastName: "Admissions Prospect",
-                                Company: "Vishnu Institute of Technology (VIT)",
-                                Phone: targetPhone,
-                                Description: "Lead created automatically by Nemo AI chatbot on advisor handoff.",
-                                Status: "Working - Contacted"
-                            };
-                            const createLeadRes = await fetch(`${sfConn.instanceUrl}/services/data/v58.0/sobjects/Lead`, {
-                                method: "POST",
-                                headers: {
-                                    "Authorization": `Bearer ${sfConn.accessToken}`,
-                                    "Content-Type": "application/json"
-                                },
-                                body: JSON.stringify(newLeadBody)
-                            });
-                            const createLeadData = await createLeadRes.json();
-                            if (createLeadRes.ok) {
-                                leadId = createLeadData.id;
-                                console.log(`[SALESFORCE API] Handoff lead created successfully with ID: ${leadId}`);
-                            }
-                        }
-
-                        if (leadId) {
-                            // Create follow-up Task
-                            console.log(`[SALESFORCE API] Creating Task associated with Lead ${leadId}...`);
-                            const taskBody = {
-                                Subject: "Admissions Advisor Handoff - AI Chat Summary",
-                                WhoId: leadId,
-                                Description: `AI Advisor Handoff Requested for student with phone number ${targetPhone}.\n\nChat Transcript Summary:\n${cleanedReply}`,
-                                Status: "Not Started",
-                                Priority: "High"
-                            };
-                            const createTaskRes = await fetch(`${sfConn.instanceUrl}/services/data/v58.0/sobjects/Task`, {
-                                method: "POST",
-                                headers: {
-                                    "Authorization": `Bearer ${sfConn.accessToken}`,
-                                    "Content-Type": "application/json"
-                                },
-                                body: JSON.stringify(taskBody)
-                            });
-                            const createTaskData = await createTaskRes.json();
-                            if (createTaskRes.ok) {
-                                console.log(`[SALESFORCE API] High-Priority Task created: ${createTaskData.id}`);
-                            } else {
-                                console.error("[SALESFORCE API] Task creation failed:", createTaskData);
-                            }
-                        }
-                    } catch (sfErr) {
-                        console.error("[SALESFORCE API] Error during live Salesforce handoff operations:", sfErr);
+                    if (isHandoffTriggered) {
+                        console.log("\n------------------ SRGEC ADVISOR HANDOFF DETECTED ------------------");
+                        res.write(`data: ${JSON.stringify({ tool_result: "Advisor Handoff initiated in SRGEC Admissions Desk." })}\n\n`);
+                        const twilioMsg = `Hi! Thanks for your interest in Seshadri Rao Gudlavalleru Engineering College (SRGEC). An admissions counselor has been assigned and will contact you shortly.`;
+                        await sendTwilioWhatsApp(phoneNumber, twilioMsg);
                     }
-                    const twilioMsg = `Hi! Thanks for your interest in Vishnu Institute of Technology. A counselor has been assigned and will contact you shortly.`;
-                    await sendTwilioWhatsApp(targetPhone, twilioMsg);
-                    console.log("----------------------------------------------------------------\n");
 
-                    // Write a small helper SSE indicator to UI if helpful
-                    res.write(`data: ${JSON.stringify({ tool_result: "Advisor Handoff initiated in Salesforce." })}\n\n`);
-                    await new Promise((resolve) => setTimeout(resolve, 300));
+                    sessionHistory.push({
+                        role: "model",
+                        parts: [{ text: cleanedReply }],
+                    });
+
+                    res.write(`data: ${JSON.stringify({ final_result: cleanedReply })}\n\n`);
+                    res.end();
+
+                } else {
+                    // GRACEFUL RULE-BASED FALLBACK (When GEMINI_API_KEY is not configured)
+                    res.write(`data: ${JSON.stringify({ thinking: "🔍 Searching SRGEC Admissions Knowledge Base..." })}\n\n`);
+                    await new Promise((resolve) => setTimeout(resolve, 500));
+
+                    sessionHistory.push({
+                        role: "user",
+                        parts: [{ text: prompt }],
+                    });
+
+                    const reply = generateRuleBasedAnswer(prompt, sessionHistory);
+                    const isHandoff = reply.includes("[TRIGGER_ADVISOR_HANDOFF]");
+                    const cleanReply = reply.replace(/\[TRIGGER_ADVISOR_HANDOFF\]/gi, "").trim();
+
+                    // Stream words gradually to provide a realistic conversational feel
+                    const words = cleanReply.split(" ");
+                    for (let i = 0; i < words.length; i += 4) {
+                        const slice = words.slice(i, i + 4).join(" ") + " ";
+                        res.write(`data: ${JSON.stringify({ response: slice })}\n\n`);
+                        await new Promise((resolve) => setTimeout(resolve, 60));
+                    }
+
+                    if (isHandoff) {
+                        res.write(`data: ${JSON.stringify({ tool_result: "Advisor Handoff request noted for SRGEC Admissions team." })}\n\n`);
+                        const twilioMsg = `Hi! Thanks for your interest in Seshadri Rao Gudlavalleru Engineering College (SRGEC). An admissions counselor has been notified and will contact you.`;
+                        await sendTwilioWhatsApp(phoneNumber, twilioMsg);
+                    }
+
+                    sessionHistory.push({
+                        role: "model",
+                        parts: [{ text: cleanReply }],
+                    });
+
+                    res.write(`data: ${JSON.stringify({ final_result: cleanReply })}\n\n`);
+                    res.end();
                 }
-
-
-                // Append assistant reply to history
-                sessionHistory.push({
-                    role: "model",
-                    parts: [{ text: cleanedReply }],
-                });
-
-                // 5. Send final outcome to client
-                res.write(`data: ${JSON.stringify({ final_result: cleanedReply })}\n\n`);
-                res.end();
 
             } catch (err) {
-                console.error("[GEMINI PROXY] Error processing request:", err);
+                console.error("[NEMO AI PROXY] Error processing request:", err);
                 res.write(`data: ${JSON.stringify({ error: err.message || "Proxy exception occurred." })}\n\n`);
                 res.end();
             }
@@ -802,7 +816,7 @@ const server = http.createServer((req, res) => {
                 const { username, password } = payload;
                 if (username === COUNSELOR_USER && password === COUNSELOR_PASS) {
                     const token = signJwt(
-                        { username, role: "counselor", exp: Date.now() + 3600000 }, // 1 hour token
+                        { username, role: "counselor", exp: Date.now() + 3600000 },
                         JWT_SECRET
                     );
                     sendJson(res, 200, { success: true, token });
@@ -817,24 +831,65 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // -------------------------------------------------------------
-    // NEW PORTAL ENHANCEMENT ENDPOINTS
-    // -------------------------------------------------------------
-
     // 1. GET /api/courses
     if (req.method === "GET" && req.url === "/api/courses") {
         sendJson(res, 200, COURSES);
         return;
     }
 
-    // 2. GET /api/enrollments
+    // 2. GET /api/enrollments/status (Public Student Application Status Check)
+    if (req.method === "GET" && req.url.startsWith("/api/enrollments/status")) {
+        const queryParams = new URLSearchParams(req.url.split("?")[1] || "");
+        const searchId = (queryParams.get("id") || "").trim().toUpperCase();
+        const searchPhone = (queryParams.get("phone") || "").replace(/[\s+-]/g, "");
+
+        if (!searchId && !searchPhone) {
+            sendJson(res, 400, { error: "Please provide a Registration ID or Phone Number to check status." });
+            return;
+        }
+
+        const found = enrollments.find(e => {
+            const idMatch = searchId && e.id && e.id.toUpperCase() === searchId;
+            const phoneClean = (e.phone || "").replace(/[\s+-]/g, "");
+            const phoneMatch = searchPhone && phoneClean && (phoneClean.includes(searchPhone) || searchPhone.includes(phoneClean));
+            return idMatch || phoneMatch;
+        });
+
+        if (!found) {
+            sendJson(res, 404, {
+                found: false,
+                message: `No application matching ${searchId || searchPhone} was found in the SRGEC admissions registry.`
+            });
+            return;
+        }
+
+        sendJson(res, 200, {
+            found: true,
+            enrollment: {
+                id: found.id,
+                fullName: found.fullName,
+                courseName: found.courseName,
+                courseCategory: found.courseCategory,
+                courseFee: found.courseFee,
+                discountPercentage: found.discountPercentage,
+                finalPayableAmount: found.finalPayableAmount,
+                enrollmentStatus: found.enrollmentStatus,
+                approvalStatus: found.approvalStatus,
+                expectedStartDate: found.expectedStartDate,
+                createdDate: found.createdDate,
+            }
+        });
+        return;
+    }
+
+    // 3. GET /api/enrollments (Authorized Counselor View)
     if (req.method === "GET" && req.url === "/api/enrollments") {
         if (!checkAuthorized(req, res)) return;
         sendJson(res, 200, enrollments);
         return;
     }
 
-    // 3. GET /api/enrollments/ai-insights (simulating Agentforce prompt templates)
+    // 4. GET /api/enrollments/ai-insights (Simulating AI Advisor prompt templates)
     if (req.method === "GET" && req.url.startsWith("/api/enrollments/ai-insights")) {
         if (!checkAuthorized(req, res)) return;
         const queryParams = new URLSearchParams(req.url.split("?")[1] || "");
@@ -846,7 +901,7 @@ const server = http.createServer((req, res) => {
             return;
         }
 
-        const studentName = found.fullName || "Unknown Student";
+        const studentName = found.fullName || "Applicant";
         const courseName = found.courseName || "Unknown Course";
         const courseFee = found.courseFee || 0;
         const discount = found.discountPercentage || 0;
@@ -855,21 +910,20 @@ const server = http.createServer((req, res) => {
         const aiScore = found.aiPriorityScore || 50;
         const riskLevel = found.riskLevel || "Low";
 
-        // Simulated AI Prompt outputs:
-        const studentApplicationSummary = `Student Application Summary:
+        const studentApplicationSummary = `SRGEC Student Application Evaluation:
 * Applicant Name: ${studentName}
-* Choice Course: ${courseName} (Standard fee: ₹${courseFee.toLocaleString('en-IN')})
-* Financial Structure: Applied discount of ${discount}% resulting in a Final Payable Amount of ₹${finalPayable.toLocaleString('en-IN')}.
-* Admission Status: The application is currently flagged as "${status}".
+* Programme: ${courseName} (Standard fee: ₹${courseFee.toLocaleString('en-IN')})
+* Financial Structure: Applied institutional discount of ${discount}% resulting in a Final Payable Amount of ₹${finalPayable.toLocaleString('en-IN')}.
+* Admission Status: The application is currently marked as "${status}".
 * AI Evaluation Rank: Evaluated with an AI priority score of ${aiScore}/100.
-${aiScore >= 80 ? "⚠️ WARNING: High priority applicant requiring immediate counselor handoff." : "✅ Normal priority - process through standard channels."}
-* Risk indicators: The financial discount is within ${discount > 30 ? "high-risk levels" : "standard parameters"}.`;
+${aiScore >= 80 ? "⚠️ High priority applicant requiring priority counselor contact." : "✅ Normal priority - process through standard SRGEC admission counselling."}
+* Risk indicators: Financial concession is within ${discount > 30 ? "exceptional approval levels" : "standard parameters"}.`;
 
-        const admissionRiskAnalysis = `Student Enrollment Risk Analysis & Recommendations:
-1. Probability of Admission: Estimated at ${aiScore > 75 ? "92%" : "68%"} based on entrance scores and academic background.
-2. Financial Risk: ${discount > 30 ? "High risk (Revenue reduction > 30% due to discount)" : "Low risk (Within normal discount margin)"}.
-3. Overall Enrollment Health: ${riskLevel} Risk.
-4. Recommendations: ${discount > 30 ? "⚠️ REQUIRE MANAGER OVERRIDE. Verify eligibility scores before granting this discount." : "✅ SAFE TO APPROVE. The discount and academic parameters match all enrollment criteria."}`;
+        const admissionRiskAnalysis = `SRGEC Admission Risk Analysis & Recommendation:
+1. Probability of Admission: Estimated at ${aiScore > 75 ? "92%" : "70%"} based on entrance rank and academic scores.
+2. Financial Feasibility: ${discount > 30 ? "Review Required (Concession > 30%)" : "Standard approved structure"}.
+3. Enrollment Health: ${riskLevel} Risk.
+4. Recommendation: ${discount > 30 ? "⚠️ Require Principal/Dean approval before finalizing seat." : "✅ Recommended for seat confirmation in SRGEC admissions portal."}`;
 
         sendJson(res, 200, {
             id: enrollmentId,
@@ -879,7 +933,7 @@ ${aiScore >= 80 ? "⚠️ WARNING: High priority applicant requiring immediate c
         return;
     }
 
-    // 4. POST /api/enrollments
+    // 5. POST /api/enrollments (New Student Application Submission)
     if (req.method === "POST" && req.url === "/api/enrollments") {
         let body = "";
         req.on("data", (chunk) => { body += chunk.toString(); });
@@ -891,7 +945,7 @@ ${aiScore >= 80 ? "⚠️ WARNING: High priority applicant requiring immediate c
                 const fee = courseItem.fee;
                 const discount = parseFloat(payload.discountPercentage) || 0;
                 const finalPayable = Math.max(0, fee * (1 - (discount / 100)));
-                const aiScore = Math.floor(40 + Math.random() * 61); // 40 to 100
+                const aiScore = Math.floor(45 + Math.random() * 55);
 
                 let risk = "Low";
                 if (discount > 30) risk = "High";
@@ -904,10 +958,12 @@ ${aiScore >= 80 ? "⚠️ WARNING: High priority applicant requiring immediate c
                     enrollStatus = "Submitted for Approval";
                 }
 
+                // SRGEC Registration Reference Format
+                const randNum = Math.floor(10000 + Math.random() * 90000);
                 const brandNew = {
-                    id: "ENR-" + Date.now(),
-                    fullName: payload.fullName || "Test Student",
-                    email: payload.email || "test@example.com",
+                    id: `SRGEC-2026-A${randNum}`,
+                    fullName: payload.fullName || "Student Applicant",
+                    email: payload.email || "student@example.com",
                     phone: payload.phone || "0000000000",
                     expectedStartDate: payload.expectedStartDate || new Date().toISOString().split("T")[0],
                     choiceOption1: courseId,
@@ -923,17 +979,13 @@ ${aiScore >= 80 ? "⚠️ WARNING: High priority applicant requiring immediate c
                     createdDate: new Date().toISOString()
                 };
 
-                enrollments.push(brandNew);
+                enrollments.unshift(brandNew);
                 await saveEnrollmentDb(brandNew);
-                console.log(`[MOCK SF DB] Saved new Student Enrollment: ${brandNew.id} (${brandNew.fullName})`);
+                console.log(`[SRGEC ADMISSIONS] Registered new Application: ${brandNew.id} for ${brandNew.fullName}`);
 
-                // Mock triggered flow outputs in local log
-                if (aiScore >= 80) {
-                    console.log(`[MOCK SF SYSTEM] Triggering flow: AI Priority score ${aiScore} >= 80. Real-time Counselor Email Alert run.`);
-                }
-                if (discount > 30) {
-                    console.log(`[MOCK SF SYSTEM] Triggering approval process: Discount ${discount}% > 30%. Sent Manager Email Alert.`);
-                }
+                // Send Twilio notification if configured
+                const msg = `Congratulations ${brandNew.fullName}! Your SRGEC Admission Registration has been received. Your Registration ID is ${brandNew.id}. College Counselling Code: GECW.`;
+                await sendTwilioWhatsApp(brandNew.phone, msg);
 
                 sendJson(res, 201, brandNew);
             } catch (err) {
@@ -944,7 +996,7 @@ ${aiScore >= 80 ? "⚠️ WARNING: High priority applicant requiring immediate c
         return;
     }
 
-    // 5. POST /api/enrollments/action
+    // 6. POST /api/enrollments/action
     if (req.method === "POST" && req.url === "/api/enrollments/action") {
         if (!checkAuthorized(req, res)) return;
         let body = "";
@@ -953,7 +1005,7 @@ ${aiScore >= 80 ? "⚠️ WARNING: High priority applicant requiring immediate c
             try {
                 const payload = JSON.parse(body);
                 const enrollmentId = payload.id;
-                const action = payload.action; // "approve" or "reject"
+                const action = payload.action;
                 const foundIndex = enrollments.findIndex(e => e.id === enrollmentId);
 
                 if (foundIndex === -1) {
@@ -964,11 +1016,11 @@ ${aiScore >= 80 ? "⚠️ WARNING: High priority applicant requiring immediate c
                 if (action === "approve") {
                     enrollments[foundIndex].approvalStatus = "Approved";
                     enrollments[foundIndex].enrollmentStatus = "Approved";
-                    console.log(`[MOCK SF SYSTEM] Enrollment ${enrollmentId} APPROVED by manager.`);
+                    console.log(`[SRGEC MOCK] Enrollment ${enrollmentId} APPROVED by Admissions Dean.`);
                 } else if (action === "reject") {
                     enrollments[foundIndex].approvalStatus = "Rejected";
                     enrollments[foundIndex].enrollmentStatus = "Rejected";
-                    console.log(`[MOCK SF SYSTEM] Enrollment ${enrollmentId} REJECTED by manager.`);
+                    console.log(`[SRGEC MOCK] Enrollment ${enrollmentId} REJECTED.`);
                 }
 
                 await saveEnrollmentDb(enrollments[foundIndex]);
@@ -984,10 +1036,9 @@ ${aiScore >= 80 ? "⚠️ WARNING: High priority applicant requiring immediate c
     // 404 Route
     res.writeHead(404, corsHeaders);
     res.end("Not Found");
-
 });
 
 server.listen(PORT, () => {
-    console.log(`🚀 Admissions Agent Live-Gemini Simulator running at http://localhost:${PORT}`);
+    console.log(`🏛️ Seshadri Rao Gudlavalleru Engineering College (SRGEC) Admissions Server running at http://localhost:${PORT}`);
     console.log("Press Ctrl+C to terminate");
 });

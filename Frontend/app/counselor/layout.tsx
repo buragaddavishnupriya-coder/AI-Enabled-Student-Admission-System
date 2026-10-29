@@ -47,7 +47,7 @@ export default function CounselorLayout({
     if (isAuthenticated === null) {
         return (
             <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center gap-2">
-                <RotateCw className="w-8 h-8 text-[#5ea21a] animate-spin" />
+                <RotateCw className="w-8 h-8 text-[#0B2545] animate-spin" />
                 <span className="text-gray-500 text-sm font-medium font-sans">Checking session auth...</span>
             </div>
         )
@@ -57,7 +57,7 @@ export default function CounselorLayout({
     if (!isAuthenticated && pathname !== "/counselor/login") {
         return (
             <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center gap-2">
-                <RotateCw className="w-8 h-8 text-[#5ea21a] animate-spin" />
+                <RotateCw className="w-8 h-8 text-[#0B2545] animate-spin" />
                 <span className="text-gray-500 text-sm font-medium font-sans">Redirecting to login...</span>
             </div>
         )

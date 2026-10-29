@@ -294,11 +294,11 @@ ${aiScore >= 80 ? "⚠️ WARNING: High priority applicant requiring immediate c
             <Header />
 
             {/* Dashboard Header Bar */}
-            <div className="bg-[#121212] text-white py-8 px-4 md:px-8 border-b-4 border-[#5ea21a]">
+            <div className="bg-[#0B2545] text-white py-8 px-4 md:px-8 border-b-4 border-[#C5A059]">
                 <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
-                        <div className="flex items-center gap-2 text-xs md:text-sm text-[#5ea21a] font-bold tracking-wider uppercase mb-1">
-                            <Sparkles className="w-4 h-4 animate-pulse" /> Salesforce-Aligned Admissions Portal
+                        <div className="flex items-center gap-2 text-xs md:text-sm text-[#E5BA6C] font-bold tracking-wider uppercase mb-1">
+                            <Sparkles className="w-4 h-4 text-[#C5A059] animate-pulse" /> SRGEC ADMISSIONS MANAGEMENT DESK
                         </div>
                         <h1 className="text-2xl md:text-4xl font-black tracking-tight">
                             Counselor Admissions Drawer
@@ -308,12 +308,12 @@ ${aiScore >= 80 ? "⚠️ WARNING: High priority applicant requiring immediate c
                         <Button
                             onClick={fetchEnrollments}
                             variant="outline"
-                            className="bg-transparent border-gray-700 text-gray-300 hover:text-white hover:bg-gray-800"
+                            className="bg-transparent border-gray-600 text-gray-200 hover:text-white hover:bg-[#133E87]"
                         >
                             <RotateCw className="w-4 h-4 mr-2" /> REFRESH
                         </Button>
                         <Link href="/counselor/enroll">
-                            <Button className="bg-[#eb8426] hover:bg-[#d07119] text-white font-bold">
+                            <Button className="bg-[#C5A059] hover:bg-[#a8823b] text-[#0B2545] font-bold">
                                 <Plus className="w-4 h-4 mr-2" /> NEW ENROLLMENT SCREEN FLOW
                             </Button>
                         </Link>

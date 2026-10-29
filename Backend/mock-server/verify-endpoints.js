@@ -16,7 +16,7 @@ async function valEndpoint() {
         cellPhone: testPhone,
         homePhone: "08816-543210",
         programType: "Undergraduate Programmes (B.Tech)",
-        headquarters: "Bhimavaram Campus (VIT)",
+        headquarters: "Gudlavalleru Campus (SRGEC)",
         dataAuthorization: true
     };
 

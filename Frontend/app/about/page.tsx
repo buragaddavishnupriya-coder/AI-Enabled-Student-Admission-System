@@ -2,164 +2,155 @@
 
 import { Header } from "@/components/header"
 import { Card, CardContent } from "@/components/ui/card"
-import { Award, BookOpen, Building, CheckCircle2, ChevronRight, GraduationCap, MapPin, Users } from "lucide-react"
+import { Award, BookOpen, Building, CheckCircle2, ChevronRight, GraduationCap, MapPin, Users, ShieldCheck } from "lucide-react"
+import Link from "next/link"
+import { SRGEC_CONFIG } from "@/lib/college-config"
+import { SRGECIcon } from "@/components/logo-srgec"
 
 export default function AboutPage() {
-    return (
-        <div className="min-h-screen bg-slate-50">
-            <Header />
+  const stats = [
+    { label: "Established", value: "1998", sub: "25+ Years of Excellence" },
+    { label: "Affiliation", value: "JNTUK", sub: "Permanently Affiliated" },
+    { label: "Status", value: "Autonomous", sub: "UGC & AICTE Approved" },
+    { label: "NAAC Grade", value: "Grade 'A+'", sub: "Institutional Accreditation" },
+    { label: "NBA Status", value: "Accredited", sub: "Core Engineering Branches" },
+    { label: "Counselling Code", value: "GECW", sub: "AP State Web Options" },
+  ]
 
-            <main className="max-w-7xl mx-auto px-4 py-12 md:py-16">
-                {/* Page Title */}
-                <div className="mb-12">
-                    <h1 className="text-4xl md:text-5xl font-extrabold text-[#121212] tracking-tight">
-                        ABOUT US
-                    </h1>
-                    <div className="w-20 h-1 bg-[#5ea21a] mt-4"></div>
-                </div>
+  return (
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+      <Header />
 
-                {/* Top Section - SVES */}
-                <div className="grid lg:grid-cols-12 gap-12 items-start mb-20">
-                    <div className="lg:col-span-8">
-                        <h2 className="text-2xl md:text-3xl font-bold text-[#eb8426] mb-6">
-                            SRI VISHNU EDUCATIONAL SOCIETY
-                        </h2>
-                        <p className="text-gray-700 text-lg leading-relaxed mb-6">
-                            The Society strives for continuous improvement in the field of education and is committed to delivering
-                            world-class education across diverse disciplines to students from all sections of society. Our Founder
-                            Chairman, Late Padma Bhushan Dr. B. V. Raju, with his exceptional vision and foresight, established several
-                            premier educational institutions offering programs in Engineering, Dental Sciences, Pharmacy, B.Sc., MCA,
-                            Polytechnic, and K-12 education. These institutions continue to play a vital role in shaping and nurturing
-                            the future of thousands of students year after year.
-                        </p>
-
-                        <div className="grid sm:grid-cols-2 gap-6 mt-8">
-                            <div className="flex gap-4">
-                                <CheckCircle2 className="w-6 h-6 text-[#5ea21a] flex-shrink-0" />
-                                <div>
-                                    <h4 className="font-bold text-[#121212]">Academic Rigor</h4>
-                                    <p className="text-sm text-gray-600 mt-1">Curriculums designed to foster standard excellence and practical skills.</p>
-                                </div>
-                            </div>
-                            <div className="flex gap-4">
-                                <CheckCircle2 className="w-6 h-6 text-[#5ea21a] flex-shrink-0" />
-                                <div>
-                                    <h4 className="font-bold text-[#121212]">Human Values</h4>
-                                    <p className="text-sm text-gray-600 mt-1">Nurturing holistic development with strong moral pillars.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* SVES Quick Stats Card */}
-                    <div className="lg:col-span-4 bg-[#121212] text-white p-8 rounded-2xl shadow-xl flex flex-col justify-between min-h-[350px]">
-                        <div>
-                            <h3 className="text-xl font-bold border-b border-white/10 pb-4 mb-6">
-                                SVES at a Glance
-                            </h3>
-                            <ul className="space-y-6">
-                                <li className="flex items-center gap-4">
-                                    <MapPin className="text-[#eb8426] w-6 h-6 flex-shrink-0" />
-                                    <div>
-                                        <span className="block text-2xl font-bold">2 States</span>
-                                    </div>
-                                </li>
-                                <li className="flex items-center gap-4">
-                                    <Building className="text-[#eb8426] w-6 h-6 flex-shrink-0" />
-                                    <div>
-                                        <span className="block text-2xl font-bold">4 Campuses</span>
-                                    </div>
-                                </li>
-                                <li className="flex items-center gap-4">
-                                    <GraduationCap className="text-[#eb8426] w-6 h-6 flex-shrink-0" />
-                                    <div>
-                                        <span className="block text-2xl font-bold">9 Constituent Colleges</span>
-                                    </div>
-                                </li>
-                                <li className="flex items-center gap-4">
-                                    <Users className="text-[#eb8426] w-6 h-6 flex-shrink-0" />
-                                    <div>
-                                        <span className="block text-2xl font-bold">20,000+ Students</span>
-                                    </div>
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Bottom Section - VIT Info */}
-                <div className="border-t border-gray-200 pt-16 grid lg:grid-cols-12 gap-12 items-center">
-                    <div className="lg:col-span-5 relative">
-                        <div className="overflow-hidden rounded-2xl shadow-2xl relative">
-                            <img
-                                src="/img-vishnu-sec-1.webp"
-                                alt="Vishnu Institute of Technology Campus"
-                                className="w-full h-auto object-cover"
-                            />
-                            <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-sm text-white px-4 py-2 rounded-lg text-sm font-semibold tracking-wider">
-                                VISHNU INSTITUTE OF TECHNOLOGY
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="lg:col-span-7">
-                        <h3 className="text-2xl font-bold text-[#121212] mb-6">
-                            Vishnu Institute of Technology (Autonomous), Bhimavaram
-                        </h3>
-                        <p className="text-gray-700 text-lg leading-relaxed mb-8">
-                            is one of the leading engineering colleges in Andhra Pradesh offering B.Tech, M.Tech and Ph.D. programs.
-                            The institute is known for academic excellence, research, innovation and outstanding placement opportunities.
-                        </p>
-
-                        {/* Stats badges */}
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-8">
-                            <div className="border-l-4 border-[#5ea21a] pl-4">
-                                <span className="block text-sm text-gray-500">Established</span>
-                                <span className="text-xl font-bold text-[#121212]">Est. 2008</span>
-                                <span className="block text-xs text-gray-600">18 Years Of Excellence</span>
-                            </div>
-                            <div className="border-l-4 border-[#5ea21a] pl-4">
-                                <span className="block text-sm text-gray-500">Affiliation</span>
-                                <span className="text-xl font-bold text-[#121212]">JNTUK</span>
-                                <span className="block text-xs text-gray-600">Permanently Affiliated</span>
-                            </div>
-                            <div className="border-l-4 border-[#5ea21a] pl-4">
-                                <span className="block text-sm text-gray-500">Status</span>
-                                <span className="text-xl font-bold text-[#121212]">Autonomous</span>
-                                <span className="block text-xs text-gray-600">From Year 2019-'20</span>
-                            </div>
-                            <div className="border-l-4 border-[#eb8426] pl-4">
-                                <span className="block text-sm text-gray-500">Accreditation</span>
-                                <span className="text-xl font-bold text-[#121212]">NAAC 'A+'</span>
-                                <span className="block text-xs text-gray-600">With 3.51 CGPA</span>
-                            </div>
-                            <div className="border-l-4 border-[#eb8426] pl-4">
-                                <span className="block text-sm text-gray-500">NBA Status</span>
-                                <span className="text-xl font-bold text-[#121212]">Approved</span>
-                                <span className="block text-xs text-gray-600">NBA Accredited Courses</span>
-                            </div>
-                            <div className="border-l-4 border-[#eb8426] pl-4">
-                                <span className="block text-sm text-gray-500">Atal Ranking</span>
-                                <span className="text-xl font-bold text-[#121212]">ARIIA</span>
-                                <span className="block text-xs text-gray-600">Top Innovation Achievements</span>
-                            </div>
-                        </div>
-
-                        <p className="text-gray-700 italic text-lg border-t border-gray-150 pt-6">
-                            "At VISHNU, you will experience a dynamic learning environment that empowers you to grow, explore, and realize your full potential."
-                        </p>
-                    </div>
-                </div>
-            </main>
-
-            {/* Footer */}
-            <footer className="bg-[#121212] text-white py-12">
-                <div className="max-w-7xl mx-auto px-4 text-center">
-                    <p className="text-gray-500 text-sm">
-                        © {new Date().getFullYear()} Vishnu Institute of Technology. All rights reserved.
-                    </p>
-                </div>
-            </footer>
+      <main className="max-w-7xl mx-auto px-4 py-12 md:py-16 flex-1">
+        {/* Page Title */}
+        <div className="mb-12">
+          <div className="inline-flex items-center gap-1.5 text-xs text-[#0B2545] font-bold uppercase tracking-wider bg-[#0B2545]/10 px-3 py-1 rounded-full mb-3">
+            Institutional Profile
+          </div>
+          <h1 className="text-3xl md:text-5xl font-extrabold text-[#0B2545] tracking-tight">
+            About Seshadri Rao Gudlavalleru Engineering College
+          </h1>
+          <div className="w-20 h-1 bg-[#C5A059] mt-4"></div>
         </div>
-    )
+
+        {/* Top Section - Founding Society & History */}
+        <div className="grid lg:grid-cols-12 gap-12 items-start mb-20">
+          <div className="lg:col-span-8 space-y-6 text-gray-700 text-base md:text-lg leading-relaxed">
+            <h2 className="text-2xl md:text-3xl font-extrabold text-[#0B2545]">
+              A Heritage of Engineering & Academic Excellence
+            </h2>
+
+            <p>
+              <strong>Seshadri Rao Gudlavalleru Engineering College (SRGEC)</strong> was established in 1998 by the visionary philanthropic leadership of the <strong>AANM & VVRSR Educational Society</strong> (Adusumilli Aswardha Narayana Murthy & Vallurupalli Venkata Rama Seshadri Rao Educational Society). Nestled in the serene Seshadri Rao Knowledge Village in Gudlavalleru, Krishna District, Andhra Pradesh, the college has stood as a bastion of technical brilliance and innovation for over two and a half decades.
+            </p>
+
+            <p>
+              The institution is an <strong>Autonomous College</strong> approved by AICTE, New Delhi, and permanently affiliated to <strong>Jawaharlal Nehru Technological University Kakinada (JNTUK)</strong>. SRGEC holds prestigious accreditation from <strong>NAAC with 'A+' Grade</strong> and NBA accreditations for its flagship undergraduate engineering programmes.
+            </p>
+
+            <div className="grid sm:grid-cols-2 gap-6 pt-4">
+              <div className="flex gap-4 p-4 rounded-xl bg-white border border-gray-200">
+                <CheckCircle2 className="w-6 h-6 text-[#0B2545] flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-bold text-gray-900 text-sm">Vision for Innovation</h4>
+                  <p className="text-xs text-gray-600 mt-1">Nurturing creative problem-solvers equipped with advanced computing and core engineering capabilities.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 p-4 rounded-xl bg-white border border-gray-200">
+                <CheckCircle2 className="w-6 h-6 text-[#0B2545] flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-bold text-gray-900 text-sm">Ethics & Social Commitment</h4>
+                  <p className="text-xs text-gray-600 mt-1">Imparting human values, professional integrity, and research dedication for regional and global development.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Snapshot Card */}
+          <div className="lg:col-span-4 bg-[#0B2545] text-white p-8 rounded-2xl shadow-xl flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-3 border-b border-white/15 pb-4 mb-6">
+                <SRGECIcon className="w-10 h-10" />
+                <div>
+                  <h3 className="text-base font-bold text-white">SRGEC at a Glance</h3>
+                  <p className="text-xs text-slate-300">Gudlavalleru, AP</p>
+                </div>
+              </div>
+
+              <ul className="space-y-5 text-sm">
+                <li className="flex items-center gap-3">
+                  <MapPin className="text-[#E5BA6C] w-5 h-5 flex-shrink-0" />
+                  <div>
+                    <span className="block font-bold">Location</span>
+                    <span className="text-xs text-slate-300">Krishna District, Andhra Pradesh</span>
+                  </div>
+                </li>
+                <li className="flex items-center gap-3">
+                  <Building className="text-[#E5BA6C] w-5 h-5 flex-shrink-0" />
+                  <div>
+                    <span className="block font-bold">Campus Area</span>
+                    <span className="text-xs text-slate-300">Modern State-of-the-Art Tech Campus</span>
+                  </div>
+                </li>
+                <li className="flex items-center gap-3">
+                  <GraduationCap className="text-[#E5BA6C] w-5 h-5 flex-shrink-0" />
+                  <div>
+                    <span className="block font-bold">Academic Degrees</span>
+                    <span className="text-xs text-slate-300">B.Tech, M.Tech, MBA, and Ph.D</span>
+                  </div>
+                </li>
+                <li className="flex items-center gap-3">
+                  <Users className="text-[#E5BA6C] w-5 h-5 flex-shrink-0" />
+                  <div>
+                    <span className="block font-bold">Alumni Strength</span>
+                    <span className="text-xs text-slate-300">20,000+ Engineers Globally Placed</span>
+                  </div>
+                </li>
+              </ul>
+            </div>
+
+            <div className="pt-6 border-t border-white/10 mt-6">
+              <Link href="/apply">
+                <span className="text-xs font-bold text-[#E5BA6C] hover:underline flex items-center justify-between">
+                  <span>Apply for Admission (A.Y. 2026-27)</span>
+                  <ChevronRight className="w-4 h-4" />
+                </span>
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Accreditations & Key Metrics */}
+        <div className="border-t border-gray-200 pt-16">
+          <div className="text-center max-w-2xl mx-auto mb-12">
+            <h3 className="text-2xl md:text-3xl font-extrabold text-[#0B2545]">
+              Accreditations & Recognitions
+            </h3>
+            <p className="text-gray-600 text-sm mt-2">
+              Our autonomous standing and high academic credentials assure students of industry-recognized excellence.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {stats.map((s, idx) => (
+              <div key={idx} className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm text-center">
+                <span className="text-xs font-semibold text-gray-500 block">{s.label}</span>
+                <span className="text-xl font-black text-[#0B2545] block mt-1">{s.value}</span>
+                <span className="text-[11px] text-gray-600 block mt-0.5">{s.sub}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="bg-[#0B2545] text-white py-12 mt-16 border-t border-white/10">
+        <div className="max-w-7xl mx-auto px-4 text-center space-y-2 text-xs text-slate-400">
+          <p>© {new Date().getFullYear()} Seshadri Rao Gudlavalleru Engineering College (Autonomous). All Rights Reserved.</p>
+          <p>Gudlavalleru, Krishna District, Andhra Pradesh, India.</p>
+        </div>
+      </footer>
+    </div>
+  )
 }

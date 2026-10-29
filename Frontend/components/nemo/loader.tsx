@@ -1,83 +1,58 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { Loader2 } from "lucide-react"
-import Image from "next/image"
+import { SRGECIcon } from "../logo-srgec"
 
 interface LoaderProps {
-  variant: "text-shimmer" | "typing" | "circular" | "logo-spin"
-  text?: string
+  variant?: "dots" | "typing" | "spinner" | "logo-spin"
   size?: "sm" | "md" | "lg"
   className?: string
 }
 
-/**
- * Loader Component - Based on Prompt Kit
- *
- * Supports three variants:
- * - text-shimmer: Thinking state with shimmer animation
- * - typing: Streaming state with animated dots
- * - circular: Spinning circle loader (for tool processing) - uses Lucide React Loader2
- */
-export function Loader({ variant, text = "Thinking", size = "md", className }: LoaderProps) {
-  if (variant === "text-shimmer") {
-    return (
-      <div className={cn("flex items-center gap-2", className)}>
-        <span
-          className={cn(
-            "shimmer-text font-medium",
-            size === "sm" && "text-sm",
-            size === "md" && "text-base",
-            size === "lg" && "text-lg"
-          )}
-        >
-          {text}
-        </span>
-      </div>
-    )
-  }
-
+export function Loader({
+  variant = "dots",
+  size = "md",
+  className,
+}: LoaderProps) {
   if (variant === "typing") {
     return (
-      <div className={cn("flex items-center gap-1", className)}>
+      <span className={cn("inline-flex items-center gap-1", className)}>
         <span
           className={cn(
-            "typing-dot rounded-full bg-[#64748b]",
-            size === "sm" && "w-1 h-1",
-            size === "md" && "w-1.5 h-1.5",
-            size === "lg" && "w-2 h-2"
+            "rounded-full bg-current animate-bounce [animation-delay:-0.3s]",
+            size === "sm" && "h-1.5 w-1.5",
+            size === "md" && "h-2 w-2",
+            size === "lg" && "h-2.5 w-2.5"
           )}
         />
         <span
           className={cn(
-            "typing-dot rounded-full bg-[#64748b]",
-            size === "sm" && "w-1 h-1",
-            size === "md" && "w-1.5 h-1.5",
-            size === "lg" && "w-2 h-2"
+            "rounded-full bg-current animate-bounce [animation-delay:-0.15s]",
+            size === "sm" && "h-1.5 w-1.5",
+            size === "md" && "h-2 w-2",
+            size === "lg" && "h-2.5 w-2.5"
           )}
-          style={{ animationDelay: "0.2s" }}
         />
         <span
           className={cn(
-            "typing-dot rounded-full bg-[#64748b]",
-            size === "sm" && "w-1 h-1",
-            size === "md" && "w-1.5 h-1.5",
-            size === "lg" && "w-2 h-2"
+            "rounded-full bg-current animate-bounce",
+            size === "sm" && "h-1.5 w-1.5",
+            size === "md" && "h-2 w-2",
+            size === "lg" && "h-2.5 w-2.5"
           )}
-          style={{ animationDelay: "0.4s" }}
         />
-      </div>
+      </span>
     )
   }
 
-  if (variant === "circular") {
+  if (variant === "spinner") {
     return (
-      <Loader2
+      <div
         className={cn(
-          "animate-spin text-blue-500",
-          size === "sm" && "h-4 w-4",
-          size === "md" && "h-5 w-5",
-          size === "lg" && "h-6 w-6",
+          "inline-block animate-spin rounded-full border-2 border-solid border-current border-r-transparent motion-reduce:animate-[spin_1.5s_linear_infinite]",
+          size === "sm" && "h-4 w-4 border-2",
+          size === "md" && "h-5 w-5 border-2",
+          size === "lg" && "h-6 w-6 border-3",
           className
         )}
       />
@@ -85,23 +60,9 @@ export function Loader({ variant, text = "Thinking", size = "md", className }: L
   }
 
   if (variant === "logo-spin") {
-    const sizeMap = {
-      sm: 16,
-      md: 20,
-      lg: 24,
-    }
-    const pixelSize = sizeMap[size]
-
     return (
-      <div className={cn("inline-block", className)}>
-        <Image
-          src="/logo-vishnu.png"
-          alt="Cintana Logo"
-          width={pixelSize}
-          height={pixelSize}
-          className="animate-spin"
-          priority
-        />
+      <div className={cn("inline-block animate-pulse", className)}>
+        <SRGECIcon className="w-5 h-5" />
       </div>
     )
   }

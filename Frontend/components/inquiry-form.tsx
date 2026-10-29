@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { X, ChevronDown } from "lucide-react"
+import { X, ChevronDown, Loader2, AlertCircle, ShieldCheck } from "lucide-react"
 
 export interface InquiryFormData {
   headquarters: string
@@ -30,7 +30,7 @@ export function InquiryForm({
   submissionError,
 }: InquiryFormProps) {
   const [formData, setFormData] = useState<InquiryFormData>({
-    headquarters: "",
+    headquarters: "gudlavalleru",
     programType: "",
     firstName: "",
     lastName: "",
@@ -54,7 +54,6 @@ export function InquiryForm({
       [name]: newValue,
     }))
 
-    // Clear error when user starts typing
     if (errors[name as keyof InquiryFormData]) {
       setErrors((prev) => ({
         ...prev,
@@ -67,10 +66,10 @@ export function InquiryForm({
     const newErrors: Partial<Record<keyof InquiryFormData, string>> = {}
 
     if (!formData.headquarters) {
-      newErrors.headquarters = "Please select a campus"
+      newErrors.headquarters = "Please select a campus location"
     }
     if (!formData.programType) {
-      newErrors.programType = "Please select a program type"
+      newErrors.programType = "Please select a programme of interest"
     }
     if (!formData.firstName.trim()) {
       newErrors.firstName = "First name is required"
@@ -81,13 +80,15 @@ export function InquiryForm({
     if (!formData.email.trim()) {
       newErrors.email = "Email is required"
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = "Please enter a valid email"
+      newErrors.email = "Please enter a valid email address"
     }
     if (!formData.cellPhone.trim()) {
-      newErrors.cellPhone = "Cell phone is required"
+      newErrors.cellPhone = "Mobile phone number is required"
+    } else if (!/^\+?[0-9]{10,12}$/.test(formData.cellPhone.replace(/[\s-]/g, ""))) {
+      newErrors.cellPhone = "Please enter a valid 10-12 digit mobile number"
     }
     if (!formData.dataAuthorization) {
-      newErrors.dataAuthorization = "You must authorize data processing"
+      newErrors.dataAuthorization = "You must authorize the college to process your inquiry"
     }
 
     setErrors(newErrors)
@@ -96,25 +97,28 @@ export function InquiryForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (validate()) {
+    if (validate() && !isSubmitting) {
       onSubmit(formData)
     }
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 py-12 px-4 flex items-center justify-center">
-      <Card className="w-full max-w-2xl shadow-2xl border-0 bg-white">
-        <CardHeader className="relative border-b border-gray-150 pb-6">
-          <CardTitle className="text-3xl font-extrabold text-center text-[#121212]">
-            ADMISSIONS <span className="text-[#5ea21a]">INQUIRY</span>
+    <div className="min-h-screen bg-slate-100 py-12 px-4 flex items-center justify-center font-sans">
+      <Card className="w-full max-w-2xl shadow-xl border border-gray-200 bg-white rounded-2xl overflow-hidden">
+        <CardHeader className="relative bg-[#0B2545] text-white py-8 px-6 md:px-8 border-b-4 border-[#C5A059]">
+          <div className="inline-flex items-center gap-1.5 text-xs text-[#E5BA6C] font-bold uppercase tracking-wider mb-2">
+            <ShieldCheck className="w-4 h-4" /> Official Admissions Desk (Code: GECW)
+          </div>
+          <CardTitle className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+            ADMISSIONS <span className="text-[#E5BA6C]">ENQUIRY</span>
           </CardTitle>
-          <p className="text-center text-gray-500 mt-2">
-            A.Y. 2026-2027 Admissions Desk — Vishnu Institute of Technology
+          <p className="text-slate-300 text-xs md:text-sm mt-1">
+            Academic Year 2026-2027 • Seshadri Rao Gudlavalleru Engineering College (SRGEC)
           </p>
           {onClose && (
             <button
               onClick={onClose}
-              className="absolute right-6 top-6 text-gray-400 hover:text-gray-600 transition-colors"
+              className="absolute right-6 top-6 text-slate-300 hover:text-white transition-colors p-1"
               aria-label="Close form"
             >
               <X className="w-6 h-6" />
@@ -122,61 +126,71 @@ export function InquiryForm({
           )}
         </CardHeader>
 
-        <CardContent className="pt-8">
+        <CardContent className="p-6 md:p-8">
+          {submissionError && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 text-red-800 text-sm">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">Submission Error</p>
+                <p className="text-xs text-red-700 mt-0.5">{submissionError}</p>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Campus Selection */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Campus / Location *
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                Campus Location *
               </label>
               <div className="relative">
                 <select
                   name="headquarters"
                   value={formData.headquarters}
                   onChange={handleChange}
-                  className={`w-full px-4 py-3 rounded-lg border-2 ${errors.headquarters ? "border-red-500" : "border-gray-300"
-                    } focus:ring-2 focus:ring-[#5ea21a] focus:border-transparent transition-colors bg-white text-[#121212] appearance-none pr-10`}
+                  className={`w-full px-4 py-3 rounded-xl border ${errors.headquarters ? "border-red-500" : "border-gray-300"
+                    } focus:ring-2 focus:ring-[#0B2545] focus:border-transparent transition-colors bg-white text-gray-900 appearance-none pr-10 text-sm`}
                 >
-                  <option value="">Select a campus...</option>
-                  <option value="bhimavaram">Bhimavaram Campus (VIT)</option>
-                  <option value="sves">Other SVES Campuses</option>
+                  <option value="gudlavalleru">Seshadri Rao Knowledge Village, Gudlavalleru Campus</option>
                 </select>
-                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none w-5 h-5" />
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none w-5 h-5" />
               </div>
               {errors.headquarters && (
-                <p className="text-red-500 text-sm mt-1">{errors.headquarters}</p>
+                <p className="text-red-500 text-xs mt-1">{errors.headquarters}</p>
               )}
             </div>
 
             {/* Program Type */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Program Type *
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                Programme Level of Interest *
               </label>
               <div className="relative">
                 <select
                   name="programType"
                   value={formData.programType}
                   onChange={handleChange}
-                  className={`w-full px-4 py-3 rounded-lg border-2 ${errors.programType ? "border-red-500" : "border-gray-300"
-                    } focus:ring-2 focus:ring-[#5ea21a] focus:border-transparent transition-colors bg-white text-[#121212] appearance-none pr-10`}
+                  className={`w-full px-4 py-3 rounded-xl border ${errors.programType ? "border-red-500" : "border-gray-300"
+                    } focus:ring-2 focus:ring-[#0B2545] focus:border-transparent transition-colors bg-white text-gray-900 appearance-none pr-10 text-sm`}
                 >
-                  <option value="">Select a program type...</option>
-                  <option value="undergraduate">Undergraduate Programmes (B.Tech)</option>
-                  <option value="graduate">Postgraduate Programmes (M.Tech / MBA / MCA)</option>
-                  <option value="phd">Ph.D. Programmes</option>
+                  <option value="">Select a programme level...</option>
+                  <option value="B.Tech (Undergraduate)">B.Tech (Undergraduate Engineering - 4 Years)</option>
+                  <option value="B.Tech Lateral Entry">B.Tech (Lateral Entry for Diploma Holders - 3 Years)</option>
+                  <option value="M.Tech (Postgraduate)">M.Tech (Postgraduate Engineering - 2 Years)</option>
+                  <option value="MBA (Management)">Master of Business Administration (MBA - 2 Years)</option>
+                  <option value="Ph.D (Doctoral Studies)">Ph.D (Doctor of Philosophy)</option>
                 </select>
-                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none w-5 h-5" />
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none w-5 h-5" />
               </div>
               {errors.programType && (
-                <p className="text-red-500 text-sm mt-1">{errors.programType}</p>
+                <p className="text-red-500 text-xs mt-1">{errors.programType}</p>
               )}
             </div>
 
-            {/* Name Fields - Side by Side */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Name Fields */}
+            <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
                   First Name *
                 </label>
                 <input
@@ -184,151 +198,132 @@ export function InquiryForm({
                   name="firstName"
                   value={formData.firstName}
                   onChange={handleChange}
-                  placeholder="Rahul"
-                  className={`w-full px-4 py-3 rounded-lg border-2 ${errors.firstName ? "border-red-500" : "border-gray-300"
-                    } focus:ring-2 focus:ring-[#5ea21a] focus:border-transparent transition-colors bg-white text-[#121212]`}
+                  placeholder="e.g. Rahul"
+                  className={`w-full px-4 py-3 rounded-xl border ${errors.firstName ? "border-red-500" : "border-gray-300"
+                    } focus:ring-2 focus:ring-[#0B2545] focus:border-transparent transition-colors text-sm`}
                 />
                 {errors.firstName && (
-                  <p className="text-red-500 text-sm mt-1">{errors.firstName}</p>
+                  <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Last Name *
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                  Last Name / Surname *
                 </label>
                 <input
                   type="text"
                   name="lastName"
                   value={formData.lastName}
                   onChange={handleChange}
-                  placeholder="Sharma"
-                  className={`w-full px-4 py-3 rounded-lg border-2 ${errors.lastName ? "border-red-500" : "border-gray-300"
-                    } focus:ring-2 focus:ring-[#5ea21a] focus:border-transparent transition-colors bg-white text-[#121212]`}
+                  placeholder="e.g. Sharma"
+                  className={`w-full px-4 py-3 rounded-xl border ${errors.lastName ? "border-red-500" : "border-gray-300"
+                    } focus:ring-2 focus:ring-[#0B2545] focus:border-transparent transition-colors text-sm`}
                 />
                 {errors.lastName && (
-                  <p className="text-red-500 text-sm mt-1">{errors.lastName}</p>
+                  <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>
                 )}
               </div>
             </div>
 
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Email Address *
-              </label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                placeholder="rahul.sharma@example.com"
-                className={`w-full px-4 py-3 rounded-lg border-2 ${errors.email ? "border-red-500" : "border-gray-300"
-                  } focus:ring-2 focus:ring-[#5ea21a] focus:border-transparent transition-colors bg-white text-[#121212]`}
-              />
-              {errors.email && (
-                <p className="text-red-500 text-sm mt-1">{errors.email}</p>
-              )}
-            </div>
-
-            {/* Phone Numbers - Side by Side */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Email and Phone */}
+            <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Cell Phone *
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                  Email Address *
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="student@example.com"
+                  className={`w-full px-4 py-3 rounded-xl border ${errors.email ? "border-red-500" : "border-gray-300"
+                    } focus:ring-2 focus:ring-[#0B2545] focus:border-transparent transition-colors text-sm`}
+                />
+                {errors.email && (
+                  <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                  Mobile Phone *
                 </label>
                 <input
                   type="tel"
                   name="cellPhone"
                   value={formData.cellPhone}
                   onChange={handleChange}
-                  placeholder="+91 98765 43210"
-                  className={`w-full px-4 py-3 rounded-lg border-2 ${errors.cellPhone ? "border-red-500" : "border-gray-300"
-                    } focus:ring-2 focus:ring-[#5ea21a] focus:border-transparent transition-colors bg-white text-[#121212]`}
+                  placeholder="10-digit mobile number"
+                  className={`w-full px-4 py-3 rounded-xl border ${errors.cellPhone ? "border-red-500" : "border-gray-300"
+                    } focus:ring-2 focus:ring-[#0B2545] focus:border-transparent transition-colors text-sm`}
                 />
                 {errors.cellPhone && (
-                  <p className="text-red-500 text-sm mt-1">{errors.cellPhone}</p>
+                  <p className="text-red-500 text-xs mt-1">{errors.cellPhone}</p>
                 )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Home Phone <span className="text-gray-400 text-xs">(Optional)</span>
-                </label>
-                <input
-                  type="tel"
-                  name="homePhone"
-                  value={formData.homePhone}
-                  onChange={handleChange}
-                  placeholder="08816 251333"
-                  className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:ring-2 focus:ring-[#5ea21a] focus:border-transparent transition-colors bg-white text-[#121212]"
-                />
               </div>
             </div>
 
-            {/* Data Authorization */}
-            <div className="bg-slate-50 p-4 rounded-lg border-2 border-gray-200">
-              <label className="flex items-start gap-3 cursor-pointer group">
+            {/* Alternative Phone */}
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                Parent / Alternate Phone (Optional)
+              </label>
+              <input
+                type="tel"
+                name="homePhone"
+                value={formData.homePhone}
+                onChange={handleChange}
+                placeholder="Parent or guardian contact number"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#0B2545] focus:border-transparent transition-colors text-sm"
+              />
+            </div>
+
+            {/* Authorization Checkbox */}
+            <div className="pt-2">
+              <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
                   name="dataAuthorization"
                   checked={formData.dataAuthorization}
                   onChange={handleChange}
-                  className="mt-1 w-5 h-5 text-[#5ea21a] border-gray-300 rounded focus:ring-[#5ea21a] cursor-pointer"
+                  className="mt-1 w-4 h-4 rounded border-gray-300 text-[#0B2545] focus:ring-[#0B2545]"
                 />
-                <span className="text-sm text-gray-700 leading-relaxed">
-                  I authorize Vishnu Institute of Technology (VIT) to verify the authenticity of the information provided and use it for
-                  academic, administrative, and marketing purposes. I understand that my data will be processed in accordance with the{" "}
-                  <a
-                    href="#"
-                    className="text-[#5ea21a] underline hover:text-[#4a8214] font-medium"
-                  >
-                    VIT Privacy Policy
-                  </a>
-                  . I have the right to request access, rectification, or deletion of my data at any time. *
+                <span className="text-xs text-gray-600 leading-relaxed">
+                  I authorize Seshadri Rao Gudlavalleru Engineering College (SRGEC) to verify the information provided and communicate admission notices, counselling instructions (Code: GECW), and updates via SMS, Phone, or WhatsApp.
                 </span>
               </label>
               {errors.dataAuthorization && (
-                <p className="text-red-500 text-sm mt-2 ml-8">
-                  {errors.dataAuthorization}
-                </p>
+                <p className="text-red-500 text-xs mt-1">{errors.dataAuthorization}</p>
               )}
             </div>
 
-            {/* Error Message */}
-            {submissionError && (
-              <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                  <p className="text-red-700 text-sm font-medium">
-                    {submissionError}
-                  </p>
-                </div>
-              </div>
-            )}
-
             {/* Submit Button */}
-            <div className="text-center pt-4">
+            <div className="pt-4 flex items-center justify-end gap-3">
+              {onClose && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onClose}
+                  disabled={isSubmitting}
+                  className="border-gray-300 text-gray-700 text-sm"
+                >
+                  Cancel
+                </Button>
+              )}
               <Button
                 type="submit"
                 disabled={isSubmitting}
-                className={`w-full md:w-auto px-12 py-6 rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl ${isSubmitting
-                  ? "bg-gray-400 cursor-not-allowed text-white"
-                  : "bg-[#5ea21a] hover:bg-[#4a8214] text-white"
-                  }`}
+                className="bg-[#0B2545] hover:bg-[#133E87] text-white px-8 py-3 rounded-xl font-bold text-sm shadow-md flex items-center gap-2"
               >
                 {isSubmitting ? (
-                  <span className="flex items-center gap-2">
-                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    Submitting...
-                  </span>
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Submitting Enquiry...</span>
+                  </>
                 ) : (
-                  "Submit Inquiry"
+                  <span>Submit & Connect with Advisor →</span>
                 )}
               </Button>
             </div>
