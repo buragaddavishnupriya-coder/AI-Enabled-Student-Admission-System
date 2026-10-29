@@ -17,7 +17,6 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { config } from "@/lib/config"
-import { COURSES } from "../../apply/page"
 
 interface FlowFormData {
     fullName: string
